@@ -1,7 +1,7 @@
 ---
 title: "Inference Simulations"
 subtitle: "PSYC 201A, Simulation Lab 2"
-author: "Your name here"
+author: "Plyfaa Suwanamalik-Murphy"
 date: today
 format:
   html:
@@ -78,6 +78,7 @@ tea_data <- make_tea_data(n_total = 18, delta = .5)
 Now, make a new data frame (call it `tea_data_highn`) with an N of 48, or something higher if you want. You need to call the custom function. Keep the same small effect (`delta = .5`): we come back to this experiment in Parts 2 and 3.
 
 ```{r}
+tea_data_highn <- make_tea_data(n_total = 48, delta = .5)
 
 ```
 
@@ -89,7 +90,24 @@ To do: Write basic tidyverse code to calculate the mean of each condition (hint:
 
 ```{r}
 
+
+by_condition <- tea_data %>%
+  
+  group_by(condition) %>%
+  
+  summarize(mean_rating = mean(rating),
+            
+            num_participants = length(rating))
+
+by_condition_highn <- tea_data_highn %>%
+  
+  group_by(condition) %>%
+  
+  summarize(mean_rating = mean(rating),
+          
+            num_participants = length(rating))
  
+
 ```
 
 ## In this first draw, was it significant with N=9 or N=24 per group?
@@ -125,7 +143,11 @@ samps <- tibble(sim = 1:1000) |>
 OK, copy this but now change it so that you 48 participants per experiment
 
 ```{r}
-samps_highn <-...
+
+samps_highn <- tibble(sim = 1:1000) |> #
+  mutate(data = map(sim, \(i) make_tea_data(n_total = 48, delta = 1.5))) |>  # simulate
+  unnest(cols = data) # wrangle
+
 ```
 
 ### Summarize both of these simulations
@@ -170,6 +192,9 @@ To do: What's different about this distribution vs the one we just plotted?
 
 ```{r}
 
+ggplot(data=tea_data_summary, aes(x=delta)) +
+  geom_histogram(alpha=.8, bins=20) 
+
 ```
 
 **Bonus** What happens if you run it again, but this time try changing the variance / mean of the effect when you change the `delta` and `sigma` values in the data simulation.
@@ -188,12 +213,26 @@ Call the simulated experiments `null_model` and use 18 participants per experime
 
 ```{r}
 # Simulate the null distribution
-  
+ 
+null_model <- tibble(sim = 1:1000) |>
+  mutate(data = map(sim, \(i) make_tea_data(n_total = 18, delta = 0))) |>
+  unnest(cols = data)
+
+null_model_summary <- null_model |>
+  group_by(sim, condition) |>
+  summarise(mean_rating = mean(rating)) |>
+  group_by(sim) |>
+  summarise(delta = mean_rating[condition == "milk first"] -
+              mean_rating[condition == "tea first"])
 ```
 
 Visualize what this null distribution actually looks like.
 
 ```{r}
+
+ggplot(data=null_model_summary, aes(x=delta)) +
+  geom_histogram(alpha=.8, bins=50) +
+  theme_classic()
 
 ```
 
@@ -450,12 +489,16 @@ To do: Look at the distribution of p-values (hint: in all_results\$pvalue)
 Make a histogram
 
 What is the distribution of p-values when the null is true?
+# Roughly uniform 
 
 Calculate the proportion of p-values that are less than .05 What was our false positive rate?
+#0.054
 
 ```{r}
 # you'll need all_results$pvalue
 hist(all_results$pvalue)
+
+mean(all_results$pvalue < .05)
 ```
 
 ### Now for an experiment when there is actually an effect
@@ -481,7 +524,10 @@ for (this_sim in 1:1000) {
 How often did we fail to reject the null hypothesis? When was our p-value greater than p=.05? What does the distribution of p-values look like?
 
 ```{r}
-# you'll need all_results_high_n$pvalue
+
+hist(all_results_high_n$pvalue)
+# 0.026 
+mean(all_results_high_n$pvalue >= .05)
 
 ```
 
@@ -506,7 +552,10 @@ Check your function: `estimate_power(48, 1.5)` should be close to 1 minus the mi
 
 ```{r}
 estimate_power <- function(n_total, delta, n_sims = 500) {
-  # your code here
+  
+  p_values <- map_dbl(1:n_sims, \(i) run_one_experiment(n_total, delta)) #sim n_sims experiment
+  
+  mean(p_values < .05) # this is propor sig
   
 }
 
@@ -526,11 +575,26 @@ To do: Plot the power curves: `n_total` on the x-axis, `power` on the y-axis, an
 
 ```{r}
 
+ggplot(power_curve, aes(x = n_total, y = power, color = factor(delta))) +
+  
+  geom_line() +
+  geom_point() +
+  geom_hline(yintercept = .8, linetype = "dashed") + 
+  geom_hline(yintercept = .05, linetype = "dotted") + # alpha
+  
+  labs(x = "total participants (n_total)",
+       y = "power (proportion of experiments with p < .05)",
+       color = "delta") +
+  
+  theme_classic()
+
 ```
 
 To do: Answer these questions.
 
 1.  What is "power" when delta = 0? Why doesn't it go up with more participants?
+Around 0.05. It won't detect an effect that's not there. 
+
 2.  About how many participants do you need for 80% power when delta = 1? When delta = 0.5?
 3.  In Part 1, `tea_data` had 18 participants and a true effect of delta = 0.5. About what was its power? If that one experiment had come out significant, how much would you trust it?
 
